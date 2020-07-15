@@ -37,6 +37,7 @@ func main() {
 	csvFile, _ := os.Open("covid_final_data.csv")
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	var covid []COVID
+	var provinceMap = make(map[string][]COVID)
 	for {
 		line, error := reader.Read()
 		if error == io.EOF {
@@ -64,7 +65,7 @@ func main() {
 		if err != nil {
 			continue
 		}
-		covid = append(covid, COVID{
+		c := COVID{
 			Positive:   positive,
 			Tests:      tests,
 			Date:       line[2],
@@ -72,8 +73,11 @@ func main() {
 			Expired:    expired,
 			Region:     line[5],
 			Admitted:   admitted,
-		})
+		}
+		covid = append(covid, c)
+		provinceMap[line[5]] = append(provinceMap[line[5]], c)
 	}
+
 	/*var srvResp ServerResponse
 	srvResp.Response = covid
 	output, _ := json.Marshal(srvResp)
@@ -95,10 +99,10 @@ func main() {
 			continue
 		}
 		log.Println("Connected to", conn.RemoteAddr())
-		go handleConnection(conn, covid)
+		go handleConnection(conn, covid, provinceMap)
 	}
 }
-func handleConnection(conn net.Conn, dataset []COVID) {
+func handleConnection(conn net.Conn, dataset []COVID, pDataSet map[string][]COVID) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Println("error closing connection:", err)
@@ -116,7 +120,7 @@ func handleConnection(conn net.Conn, dataset []COVID) {
 		err = json.Unmarshal(cmdLine[:n], &query); if err != nil {
 			log.Println("error parsing command", err)
 		}
-		subset, err := filterData(query, dataset)
+		subset, err := filterData(query, dataset, pDataSet)
 		if err != nil {
 			log.Println("error filtering data", err)
 		}
@@ -131,13 +135,14 @@ func handleConnection(conn net.Conn, dataset []COVID) {
 		}
 	}
 }
-func filterData(query QueryCommand, data []COVID) (subset []COVID, err error) {
+func filterData(query QueryCommand, data []COVID, pDataSet map[string][]COVID) (subset []COVID, err error) {
 	if query.QueryFields.Region != "" {
-		for _, v := range data {
-			if strings.ToLower(v.Region) == strings.ToLower(query.QueryFields.Region){
-				subset = append(subset, v)
-			}
-		}
+		subset = pDataSet[query.QueryFields.Region]
+		// for _, v := range data {
+		// 	if strings.ToLower(v.Region) == strings.ToLower(query.QueryFields.Region){
+		// 		subset = append(subset, v)
+		// 	}
+		// }
 	} else if query.QueryFields.Date != "" {
 		for _, v := range data {
 			if strings.ToLower(v.Date) == strings.ToLower(query.QueryFields.Date){
