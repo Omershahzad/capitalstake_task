@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 )
 // COVID Structure
 type COVID struct {
@@ -38,6 +37,7 @@ func main() {
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	var covid []COVID
 	var provinceMap = make(map[string][]COVID)
+	var dateMap = make(map[string][]COVID)
 	for {
 		line, error := reader.Read()
 		if error == io.EOF {
@@ -76,6 +76,7 @@ func main() {
 		}
 		covid = append(covid, c)
 		provinceMap[line[5]] = append(provinceMap[line[5]], c)
+		dateMap[line[2]] = append(dateMap[line[2]], c)
 	}
 
 	/*var srvResp ServerResponse
@@ -99,10 +100,10 @@ func main() {
 			continue
 		}
 		log.Println("Connected to", conn.RemoteAddr())
-		go handleConnection(conn, covid, provinceMap)
+		go handleConnection(conn, covid, provinceMap, dateMap)
 	}
 }
-func handleConnection(conn net.Conn, dataset []COVID, pDataSet map[string][]COVID) {
+func handleConnection(conn net.Conn, dataset []COVID, pDataSet map[string][]COVID, dDataSet map[string][]COVID) {
 	defer func() {
 		if err := conn.Close(); err != nil {
 			log.Println("error closing connection:", err)
@@ -120,7 +121,7 @@ func handleConnection(conn net.Conn, dataset []COVID, pDataSet map[string][]COVI
 		err = json.Unmarshal(cmdLine[:n], &query); if err != nil {
 			log.Println("error parsing command", err)
 		}
-		subset, err := filterData(query, dataset, pDataSet)
+		subset, err := filterData(query, dataset, pDataSet, dDataSet)
 		if err != nil {
 			log.Println("error filtering data", err)
 		}
@@ -135,7 +136,7 @@ func handleConnection(conn net.Conn, dataset []COVID, pDataSet map[string][]COVI
 		}
 	}
 }
-func filterData(query QueryCommand, data []COVID, pDataSet map[string][]COVID) (subset []COVID, err error) {
+func filterData(query QueryCommand, data []COVID, pDataSet map[string][]COVID, dDataSet map[string][]COVID) (subset []COVID, err error) {
 	if query.QueryFields.Region != "" {
 		subset = pDataSet[query.QueryFields.Region]
 		// for _, v := range data {
@@ -144,11 +145,12 @@ func filterData(query QueryCommand, data []COVID, pDataSet map[string][]COVID) (
 		// 	}
 		// }
 	} else if query.QueryFields.Date != "" {
-		for _, v := range data {
-			if strings.ToLower(v.Date) == strings.ToLower(query.QueryFields.Date){
-				subset = append(subset, v)
-			}
-		}
+		subset = dDataSet[query.QueryFields.Date]
+		// for _, v := range data {
+		// 	if strings.ToLower(v.Date) == strings.ToLower(query.QueryFields.Date){
+		// 		subset = append(subset, v)
+		// 	}
+		// }
 	} else {
 		log.Println("invalid query")
 	}
